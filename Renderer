@@ -1,9 +1,9 @@
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
  * CompletionService实现页面渲染器
+ * 实现预定时间请求价格
  */
 public class Renderer {
 
@@ -13,6 +13,7 @@ public class Renderer {
         this.executor = executor;
     }
 
+    //page render
     public void renderPage(CharSequence source) {
         List<ImageInfo> info = scanForImageInfo(source);
         //define CompletionService
@@ -22,7 +23,7 @@ public class Renderer {
             completionService.submit(imageInfo::downLoadImage);
         });
         //deal with other task
-        
+
         try {
             for(int i = 0, j = info.size(); i < j; ++i) {
                 Future<ImageData> f = completionService.take();
@@ -35,15 +36,97 @@ public class Renderer {
             e.getCause();
         }
     }
+    
+    //get ranked travel quote
+    public List<TravelQuote> getRankedTravelQuote (TravelInfo travelInfo, Set<TravelCompany> companies
+            , Comparator<TravelQuote> ranking, long time, TimeUnit unit) throws InterruptedException {
+        List<QuoteTask> tasks = new ArrayList<>();
+        companies.forEach(travelCompany -> tasks.add(new QuoteTask(travelCompany, travelInfo)));
+        List<Future<TravelQuote>> futures = executor.invokeAll(tasks, time, unit);
+        
+        List<TravelQuote> quotes = new ArrayList<>(tasks.size());
+        //get task failure infos
+        Iterator<QuoteTask> taskIterable = tasks.iterator();
+        futures.forEach(travelQuoteFuture -> {
+            QuoteTask task = taskIterable.next();
+            try {
+                quotes.add(travelQuoteFuture.get());
+            } catch (ExecutionException e) {
+                quotes.add(task.getFailureQuote(e.getCause()));
+            } catch (CancellationException e) {
+                quotes.add(task.getTimeOutQuote(e));
+            } catch (InterruptedException e) {
+                quotes.add(task.getInterruptedQuote(e));
+            }
+        });
+        quotes.sort(ranking);
+        return quotes;
+    }
 
     private List<ImageInfo> scanForImageInfo(CharSequence source) {
         //TODO deal with CharSequence to ImageInfo List
         return new ArrayList<>();
     }
 
+    private class QuoteTask implements Callable<TravelQuote> {
+        private final TravelCompany travelCompany;
+        private final TravelInfo travelInfo;
+
+        QuoteTask(TravelCompany travelCompany, TravelInfo travelInfo) {
+            this.travelCompany = travelCompany;
+            this.travelInfo = travelInfo;
+        }
+        
+        TravelQuote getFailureQuote(Throwable throwable) {
+            return new TravelQuote();
+        }
+        
+        TravelQuote getTimeOutQuote(CancellationException e) {
+            return new TravelQuote();
+        }
+
+        TravelQuote getInterruptedQuote (InterruptedException e) {
+            return new TravelQuote();
+        }
+
+        @Override
+        public TravelQuote call() throws Exception {
+            return travelCompany.solicitQuote(travelInfo);
+        }
+    }
+
+    private class TravelQuote {
+        private String travelCost;
+        private String travelPlace;
+    }
+
+    private class TravelCompany {
+        private String companyName;
+        private String companyAdress;
+        
+        public TravelQuote solicitQuote(TravelInfo travelInfo) {
+            return new TravelQuote();
+        }
+        
+        @Override
+        public int hashCode() {
+            return super.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj);
+        }
+    }
+
+    private class TravelInfo {
+        private String info1;
+        private String info2;
+    }
+
     private class ImageInfo {
         private String url;
-        
+
         ImageData downLoadImage() {
             //deal with get image data
             return new ImageData();
