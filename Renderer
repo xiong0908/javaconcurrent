@@ -1,0 +1,57 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+
+/**
+ * CompletionService实现页面渲染器
+ */
+public class Renderer {
+
+    private final ExecutorService executor;
+
+    public Renderer(ExecutorService executor) {
+        this.executor = executor;
+    }
+
+    public void renderPage(CharSequence source) {
+        List<ImageInfo> info = scanForImageInfo(source);
+        //define CompletionService
+        CompletionService<ImageData> completionService =
+                new ExecutorCompletionService<>(executor);
+        info.forEach(imageInfo -> {
+            completionService.submit(imageInfo::downLoadImage);
+        });
+        //deal with other task
+        
+        try {
+            for(int i = 0, j = info.size(); i < j; ++i) {
+                Future<ImageData> f = completionService.take();
+                ImageData imageData = f.get();
+                //deal with image data
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            e.getCause();
+        }
+    }
+
+    private List<ImageInfo> scanForImageInfo(CharSequence source) {
+        //TODO deal with CharSequence to ImageInfo List
+        return new ArrayList<>();
+    }
+
+    private class ImageInfo {
+        private String url;
+        
+        ImageData downLoadImage() {
+            //deal with get image data
+            return new ImageData();
+        }
+    }
+
+    private class ImageData {
+        private double width;
+        private double height;
+    }
+}
